@@ -26,14 +26,6 @@ class App extends Component {
         comparisons: 0,
         swaps: 0,
         elapsed: 0,
-        compareMode: false,
-        algorithm2: 'merge',
-        stepsB: [],
-        colorsB: [],
-        pseudoSteps: [],
-        pseudoStepsB: [],
-        currentPseudoLine: null,
-        arrayB: [],
         count: 50,
         delay: 100,
         algorithm: 'bubble',
@@ -49,9 +41,9 @@ class App extends Component {
     }
 
     startPlayback = () => {
-        if (this.state.isPlaying) return;
+    if (this.state.isPlaying) return;
 
-        const { steps, colors, stepsB, colorsB, delay } = this.state;
+    const { steps, colors, delay } = this.state;
         if (!steps || steps.length <= 1) return;
 
         this.setState({ isPlaying: true, intervalId: null, elapsed: 0 }, () => {
@@ -75,10 +67,7 @@ class App extends Component {
                     const nextArr = steps[nextStep];
                     if (prevArr && nextArr) {
                         for (let i = 0; i < nextArr.length; i++) {
-                            if (prevArr[i] !== nextArr[i]) {
-                                sw += 1;
-                                break;
-                            }
+                            if (prevArr[i] !== nextArr[i]) { sw += 1; break; }
                         }
                     }
 
@@ -86,18 +75,14 @@ class App extends Component {
                     const elapsed = prev.elapsed + (now - lastTime);
                     lastTime = now;
 
-                    const nextArrB = (stepsB && stepsB[nextStep]) ? stepsB[nextStep] : prev.arrayB;
-
-                        return {
-                            array: nextArr,
-                            colorKey: colors[nextStep],
-                            arrayB: nextArrB,
-                            currentStep: nextStep,
-                            comparisons: comps,
-                            swaps: sw,
-                            elapsed: elapsed,
-                            currentPseudoLine: (prev.pseudoSteps && prev.pseudoSteps[nextStep] != null) ? prev.pseudoSteps[nextStep] : null,
-                        };
+                    return {
+                        array: nextArr,
+                        colorKey: colors[nextStep],
+                        currentStep: nextStep,
+                        comparisons: comps,
+                        swaps: sw,
+                        elapsed: elapsed,
+                    };
                 });
             }, delay);
 
@@ -112,7 +97,7 @@ class App extends Component {
     };
 
     stepForward = () => {
-        const { steps, colors, stepsB, pseudoSteps, currentStep } = this.state;
+        const { steps, colors, currentStep } = this.state;
         if (!steps || currentStep + 1 >= steps.length) return;
         const next = currentStep + 1;
         let comps = this.state.comparisons;
@@ -125,8 +110,7 @@ class App extends Component {
                 if (prevArr[i] !== nextArr[i]) { sw += 1; break; }
             }
         }
-        const nextArrB = (stepsB && stepsB[next]) ? stepsB[next] : this.state.arrayB;
-        this.setState({ array: nextArr, colorKey: colors[next], arrayB: nextArrB, currentStep: next, comparisons: comps, swaps: sw, currentPseudoLine: (pseudoSteps && pseudoSteps[next] != null) ? pseudoSteps[next] : null });
+        this.setState({ array: nextArr, colorKey: colors[next], currentStep: next, comparisons: comps, swaps: sw });
     };
 
 
@@ -134,127 +118,67 @@ class App extends Component {
         let array = inputArray.slice();
         let steps = [array.slice()];
         let colors = [new Array(array.length).fill(0)];
-        let pseudoSteps = [null];
+
+        const pushAnimations = (animations) => {
+            for (let i = 0; i < animations.length; i++) {
+                const anim = animations[i];
+                // Detect whether anim is an array of indices (color change) or a [index, newHeight] write
+                const isIndices = Array.isArray(anim) && anim.every((x) => Number.isInteger(x) && x >= 0 && x < array.length);
+                if (isIndices) {
+                    const colorKey = new Array(array.length).fill(0);
+                    anim.forEach((idx) => { colorKey[idx] = 1; });
+                    colors.push(colorKey);
+                    steps.push(array.slice());
+                } else {
+                    const [barOneIdx, newHeight] = anim;
+                    // apply write/update
+                    array[barOneIdx] = newHeight;
+                    steps.push(array.slice());
+                    colors.push(new Array(array.length).fill(0));
+                }
+            }
+        };
 
         switch (algorithm) {
             case 'bubble':
-                BubbleSort(array, 0, steps, colors, pseudoSteps);
+                BubbleSort(array, 0, steps, colors);
                 break;
             case 'merge': {
                 const mergeAnimations = getMergeSortAnimations(array.slice());
-                for (let i = 0; i < mergeAnimations.length; i++) {
-                    const isColorChange = i % 3 !== 2;
-                    if (isColorChange) {
-                        const colorKey = new Array(array.length).fill(0);
-                        mergeAnimations[i].forEach((idx) => { colorKey[idx] = 1; });
-                        colors.push(colorKey);
-                        steps.push(array.slice());
-                        pseudoSteps.push(5); // merge compare
-                    } else {
-                        const [barOneIdx, newHeight] = mergeAnimations[i];
-                        array[barOneIdx] = newHeight;
-                        steps.push(array.slice());
-                        colors.push(new Array(array.length).fill(0));
-                        pseudoSteps.push(5); // merge write
-                    }
-                }
+                pushAnimations(mergeAnimations);
                 break;
             }
             case 'insertion': {
                 const insertionAnimations = getInsertionSortAnimations(array.slice());
-                for (let i = 0; i < insertionAnimations.length; i++) {
-                    const isColorChange = i % 3 !== 2;
-                    if (isColorChange) {
-                        const colorKey = new Array(array.length).fill(0);
-                        insertionAnimations[i].forEach((idx) => { colorKey[idx] = 1; });
-                        colors.push(colorKey);
-                        steps.push(array.slice());
-                        pseudoSteps.push(3); // insertion compare
-                    } else {
-                        const [barOneIdx, newHeight] = insertionAnimations[i];
-                        array[barOneIdx] = newHeight;
-                        steps.push(array.slice());
-                        colors.push(new Array(array.length).fill(0));
-                        pseudoSteps.push(6); // insertion place key
-                    }
-                }
+                pushAnimations(insertionAnimations);
                 break;
             }
             case 'quick': {
                 const quickAnimations = getQuickSortAnimations(array.slice());
-                for (let i = 0; i < quickAnimations.length; i++) {
-                    const isColorChange = i % 3 !== 2;
-                    if (isColorChange) {
-                        const colorKey = new Array(array.length).fill(0);
-                        quickAnimations[i].forEach((idx) => { colorKey[idx] = 1; });
-                        colors.push(colorKey);
-                        steps.push(array.slice());
-                        pseudoSteps.push(2); // quick compare
-                    } else {
-                        const [barOneIdx, newHeight] = quickAnimations[i];
-                        array[barOneIdx] = newHeight;
-                        steps.push(array.slice());
-                        colors.push(new Array(array.length).fill(0));
-                        pseudoSteps.push(2); // quick swap
-                    }
-                }
+                pushAnimations(quickAnimations);
                 break;
             }
             case 'selection': {
                 const selectionAnimations = getSelectionSortAnimations(array.slice());
-                for (let i = 0; i < selectionAnimations.length; i++) {
-                    const isColorChange = i % 3 !== 2;
-                    if (isColorChange) {
-                        const colorKey = new Array(array.length).fill(0);
-                        selectionAnimations[i].forEach((idx) => { colorKey[idx] = 1; });
-                        colors.push(colorKey);
-                        steps.push(array.slice());
-                        pseudoSteps.push(3); // selection compare
-                    } else {
-                        const [barOneIdx, newHeight] = selectionAnimations[i];
-                        array[barOneIdx] = newHeight;
-                        steps.push(array.slice());
-                        colors.push(new Array(array.length).fill(0));
-                        pseudoSteps.push(4); // selection swap
-                    }
-                }
+                pushAnimations(selectionAnimations);
                 break;
             }
             default:
                 break;
         }
 
-        return { steps, colors, pseudoSteps };
+        return { steps, colors };
     };
 
     generateSteps = () => {
         const baseArray = this.state.array.slice();
         const primary = this.getStepsForAlgorithm(baseArray, this.state.algorithm);
-        let steps = primary.steps;
-        let colors = primary.colors;
-        let pseudoSteps = primary.pseudoSteps || [];
-
-        let stepsB = [];
-        let colorsB = [];
-        let pseudoStepsB = [];
-        let arrayB = [];
-        if (this.state.compareMode) {
-            const secondary = this.getStepsForAlgorithm(baseArray, this.state.algorithm2);
-            stepsB = secondary.steps;
-            colorsB = secondary.colors;
-            arrayB = stepsB[0] ? stepsB[0].slice() : [];
-            pseudoStepsB = secondary.pseudoSteps || [];
-        }
+        const steps = primary.steps;
+        const colors = primary.colors;
 
         this.setState({
             steps: steps,
             colors: colors,
-            pseudoSteps: pseudoSteps,
-            currentPseudoLine: pseudoSteps && pseudoSteps[0] != null ? pseudoSteps[0] : null,
-            stepsB: stepsB,
-            colorsB: colorsB,
-            pseudoStepsB: pseudoStepsB,
-            arrayB: arrayB,
             comparisons: 0,
             swaps: 0,
             elapsed: 0,
@@ -415,40 +339,13 @@ class App extends Component {
                             <div>Elapsed: {(this.state.elapsed / 1000).toFixed(2)}s</div>
                         </div>
 
-                        <div className="compare-mode">
-                            <label>
-                                <input type="checkbox" checked={this.state.compareMode} onChange={(e) => this.setState({ compareMode: e.target.checked }, this.generateSteps)} disabled={this.state.isPlaying} /> Compare Mode
-                            </label>
-                            {this.state.compareMode && (
-                                <select value={this.state.algorithm2} onChange={(e) => this.setState({ algorithm2: e.target.value }, this.generateSteps)} disabled={this.state.isPlaying}>
-                                    <option value="bubble">Bubble Sort</option>
-                                    <option value="merge">Merge Sort</option>
-                                    <option value="insertion">Insertion Sort</option>
-                                    <option value="quick">Quick Sort</option>
-                                    <option value="selection">Selection Sort</option>
-                                </select>
-                            )}
-                        </div>
+                        {/* Compare mode removed to simplify UI and avoid synchronization bugs */}
                     </div>
 
                     <div className="visualizer-container">
-                        {this.state.compareMode ? (
-                            <div className="compare-visualizers">
-                                <div className="card container">
-                                    {bars}
-                                </div>
-                                <div className="card container">
-                                    {/* second visualizer */}
-                                    {this.state.stepsB && this.state.stepsB[0] ? this.state.stepsB[this.state.currentStep] && this.state.stepsB[this.state.currentStep].map((value, index) => (
-                                        <Bar key={"b-"+index} index={index} length={value} colorKey={this.state.colorsB[this.state.currentStep] ? this.state.colorsB[this.state.currentStep][index] : 0} />
-                                    )) : <div style={{padding:20}}>No secondary data</div>}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="card container">
-                                {bars}
-                            </div>
-                        )}
+                        <div className="card container">
+                            {bars}
+                        </div>
                     </div>
 
                     <div className="algorithm-info">
@@ -459,7 +356,7 @@ class App extends Component {
                                 <h4>Pseudocode</h4>
                                 <div className="pseudocode-lines">
                                     {algorithmInfo[this.state.algorithm].pseudocode.map((line, idx) => (
-                                        <div key={idx} className={"pseudoline " + (this.state.currentPseudoLine === idx ? 'active' : '')}>{line}</div>
+                                        <div key={idx} className="pseudoline">{line}</div>
                                     ))}
                                 </div>
                             </div>
