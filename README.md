@@ -5,7 +5,6 @@ An interactive and educational **Sorting Visualizer** designed to help users dee
 ---
 
 ## 📸 Project Screenshot
-*(Add your project screenshot here — replace the image path below)*
 
 ![Project Screenshot](./src/screenshot/(SV)screenshot.png)
 
